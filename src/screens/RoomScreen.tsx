@@ -53,7 +53,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   // Estado de personalizacion de burbuja del usuario
   const [bubbleCustomization, setBubbleCustomization] = useState<BubbleCustomization>({
     themeId: 'flan',
-    avatarExpression: ':3',
+    decoration: 'purin_peek',
     borderRadius: 20,
   });
 

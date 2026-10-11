@@ -6,9 +6,17 @@ export interface User {
 
 export type BubbleThemeId = 'flan' | 'caramelo' | 'fresa' | 'matcha' | 'lavanda';
 
+export type BubbleDecorationType =
+  | 'purin_peek'
+  | 'beret'
+  | 'paws'
+  | 'bone'
+  | 'pudding'
+  | 'none';
+
 export interface BubbleCustomization {
   themeId: BubbleThemeId;
-  avatarExpression: ':3' | '(^w^)' | '(o.o)' | '(u.u)';
+  decoration: BubbleDecorationType;
   borderRadius: number;
 }
 

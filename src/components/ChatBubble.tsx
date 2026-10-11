@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { PurinTheme, BubbleThemesConfig } from '../theme/colors';
 import { ChatMessage, BubbleCustomization } from '../types';
+import { BubbleDecoration } from './BubbleDecoration';
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -39,30 +40,47 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   const textColor = isSelf && themeConfig ? themeConfig.textColor : PurinTheme.colors.text;
   const borderColor = isSelf && themeConfig ? themeConfig.borderColor : PurinTheme.colors.stroke;
   const customRadius = activeCustomization?.borderRadius || PurinTheme.borders.radiusBubble;
-  const expression = activeCustomization?.avatarExpression || ':3';
+  const decoration = activeCustomization?.decoration || 'purin_peek';
 
   return (
-    <View style={[styles.row, isSelf ? styles.rowSelf : styles.rowOther]}>
+    <View
+      style={[
+        styles.row,
+        isSelf ? styles.rowSelf : styles.rowOther,
+        decoration !== 'none' && styles.rowWithDecoration,
+      ]}
+    >
       {!isSelf && (
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{expression}</Text>
+          <Text style={styles.avatarText}>:3</Text>
         </View>
       )}
-      <View
-        style={[
-          styles.bubble,
-          {
-            backgroundColor: bubbleBg,
-            borderColor: borderColor,
-            borderRadius: customRadius,
-          },
-          isSelf ? styles.bubbleSelf : styles.bubbleOther,
-        ]}
-      >
-        {!isSelf && <Text style={styles.author}>{message.userName}</Text>}
-        <Text style={[styles.messageText, { color: textColor }]}>
-          {message.text}
-        </Text>
+
+      <View style={styles.bubbleWrapper}>
+        {/* Decoracion de borde (Perrito asomado, Boina, Patitas, Huesito, Flan) */}
+        {decoration !== 'none' && (
+          <BubbleDecoration
+            type={decoration}
+            position={isSelf ? 'left' : 'left'}
+          />
+        )}
+
+        <View
+          style={[
+            styles.bubble,
+            {
+              backgroundColor: bubbleBg,
+              borderColor: borderColor,
+              borderRadius: customRadius,
+            },
+            isSelf ? styles.bubbleSelf : styles.bubbleOther,
+          ]}
+        >
+          {!isSelf && <Text style={styles.author}>{message.userName}</Text>}
+          <Text style={[styles.messageText, { color: textColor }]}>
+            {message.text}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -73,6 +91,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginVertical: 4,
     alignItems: 'flex-end',
+  },
+  rowWithDecoration: {
+    marginTop: 12, // Espacio para que el elemento asomado no choque con el mensaje superior
   },
   rowSelf: {
     justifyContent: 'flex-end',
@@ -97,8 +118,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: PurinTheme.colors.text,
   },
-  bubble: {
+  bubbleWrapper: {
+    position: 'relative',
     maxWidth: '78%',
+  },
+  bubble: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderWidth: PurinTheme.borders.thin,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { PurinTheme, BubbleThemesConfig } from '../theme/colors';
-import { BubbleCustomization, BubbleThemeId } from '../types';
-import { translations, Language } from '../i18n/translations';
+import { BubbleCustomization, BubbleThemeId, BubbleDecorationType } from '../types';
+import { BubbleDecoration } from './BubbleDecoration';
+import { Language } from '../i18n/translations';
 
 interface BubbleCustomizerModalProps {
   visible: boolean;
@@ -19,13 +20,22 @@ interface BubbleCustomizerModalProps {
   language: Language;
 }
 
-const themeKeys: BubbleThemeId[] = ['flan', 'caramelo', 'fresa', 'matcha', 'lavanda'];
-const expressions: BubbleCustomization['avatarExpression'][] = [
-  ':3',
-  '(^w^)',
-  '(o.o)',
-  '(u.u)',
+interface DecorationOption {
+  id: BubbleDecorationType;
+  titleEs: string;
+  titleEn: string;
+}
+
+const DECORATION_OPTIONS: DecorationOption[] = [
+  { id: 'purin_peek', titleEs: 'Perrito', titleEn: 'Puppy' },
+  { id: 'beret', titleEs: 'Boina', titleEn: 'Beret' },
+  { id: 'paws', titleEs: 'Patitas', titleEn: 'Paws' },
+  { id: 'bone', titleEs: 'Huesito', titleEn: 'Bone' },
+  { id: 'pudding', titleEs: 'Flancito', titleEn: 'Flan' },
+  { id: 'none', titleEs: 'Clasico', titleEn: 'Classic' },
 ];
+
+const THEME_KEYS: BubbleThemeId[] = ['flan', 'caramelo', 'fresa', 'matcha', 'lavanda'];
 
 export const BubbleCustomizerModal: React.FC<BubbleCustomizerModalProps> = ({
   visible,
@@ -34,28 +44,28 @@ export const BubbleCustomizerModal: React.FC<BubbleCustomizerModalProps> = ({
   onSave,
   language,
 }) => {
-  const [selectedTheme, setSelectedTheme] = React.useState<BubbleThemeId>(
-    customization.themeId
+  const [selectedDecoration, setSelectedDecoration] = useState<BubbleDecorationType>(
+    customization.decoration || 'purin_peek'
   );
-  const [selectedExpression, setSelectedExpression] = React.useState<
-    BubbleCustomization['avatarExpression']
-  >(customization.avatarExpression);
+  const [selectedTheme, setSelectedTheme] = useState<BubbleThemeId>(
+    customization.themeId || 'flan'
+  );
 
-  React.useEffect(() => {
-    setSelectedTheme(customization.themeId);
-    setSelectedExpression(customization.avatarExpression);
+  useEffect(() => {
+    setSelectedDecoration(customization.decoration || 'purin_peek');
+    setSelectedTheme(customization.themeId || 'flan');
   }, [customization, visible]);
 
   const handleApply = () => {
     onSave({
       themeId: selectedTheme,
-      avatarExpression: selectedExpression,
+      decoration: selectedDecoration,
       borderRadius: customization.borderRadius || 20,
     });
     onClose();
   };
 
-  const previewConfig = BubbleThemesConfig[selectedTheme];
+  const previewTheme = BubbleThemesConfig[selectedTheme];
 
   return (
     <Modal
@@ -66,79 +76,88 @@ export const BubbleCustomizerModal: React.FC<BubbleCustomizerModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={[styles.modalCard, PurinTheme.shadows.cute]}>
-          <Text style={styles.title}>
-            {language === 'es' ? 'Personalizar Burbuja' : 'Customize Bubble'}
+          <Text style={styles.headerTitle}>
+            {language === 'es' ? 'Burbuja' : 'Bubble'}
           </Text>
 
-          {/* Vista previa en tiempo real */}
-          <View style={styles.previewContainer}>
-            <Text style={styles.previewLabel}>
-              {language === 'es' ? 'Vista Previa:' : 'Preview:'}
-            </Text>
-            <View
-              style={[
-                styles.previewBubble,
-                {
-                  backgroundColor: previewConfig.backgroundColor,
-                  borderColor: previewConfig.borderColor,
-                },
-              ]}
-            >
-              <Text style={[styles.previewText, { color: previewConfig.textColor }]}>
-                {language === 'es'
-                  ? `Asi se vera tu mensajito ${selectedExpression}`
-                  : `Your message will look like this ${selectedExpression}`}
-              </Text>
+          <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+            {/* Cuadricula de 2 Columnas de Estilos de Burbuja */}
+            <View style={styles.grid}>
+              {DECORATION_OPTIONS.map((item) => {
+                const isSelected = selectedDecoration === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    activeOpacity={0.8}
+                    onPress={() => setSelectedDecoration(item.id)}
+                    style={[
+                      styles.cardItem,
+                      isSelected && styles.cardItemSelected,
+                    ]}
+                  >
+                    {/* Contenedor de Mini Burbuja con Decoracion Asomada */}
+                    <View style={styles.miniBubbleContainer}>
+                      <BubbleDecoration type={item.id} position="left" />
+                      <View
+                        style={[
+                          styles.miniBubble,
+                          {
+                            backgroundColor: previewTheme.backgroundColor,
+                            borderColor: previewTheme.borderColor,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.miniBubbleText,
+                            { color: previewTheme.textColor },
+                          ]}
+                        >
+                          {language === 'es' ? 'Hola!' : "What's up"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Nombre del Estilo debajo de la burbuja */}
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        isSelected && styles.cardTitleSelected,
+                      ]}
+                    >
+                      {language === 'es' ? item.titleEs : item.titleEn}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          </View>
 
-          {/* Selector de Color de Tema */}
-          <Text style={styles.sectionTitle}>
-            {language === 'es' ? 'Color de Postre:' : 'Dessert Color:'}
-          </Text>
-          <View style={styles.themesRow}>
-            {themeKeys.map((key) => {
-              const cfg = BubbleThemesConfig[key];
-              const isSelected = selectedTheme === key;
-              return (
-                <TouchableOpacity
-                  key={key}
-                  onPress={() => setSelectedTheme(key)}
-                  style={[
-                    styles.themeCircle,
-                    { backgroundColor: cfg.backgroundColor, borderColor: cfg.borderColor },
-                    isSelected && styles.themeCircleSelected,
-                  ]}
-                >
-                  <Text style={[styles.themeCircleText, { color: cfg.textColor }]}>
-                    {language === 'es' ? cfg.name : cfg.nameEn}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Selector de Expresion Avatar */}
-          <Text style={styles.sectionTitle}>
-            {language === 'es' ? 'Expresion de Avatar:' : 'Avatar Expression:'}
-          </Text>
-          <View style={styles.expressionsRow}>
-            {expressions.map((exp) => {
-              const isSelected = selectedExpression === exp;
-              return (
-                <TouchableOpacity
-                  key={exp}
-                  onPress={() => setSelectedExpression(exp)}
-                  style={[
-                    styles.expressionBtn,
-                    isSelected && styles.expressionBtnSelected,
-                  ]}
-                >
-                  <Text style={styles.expressionText}>{exp}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+            {/* Selector de Paleta de Color */}
+            <Text style={styles.sectionSubtitle}>
+              {language === 'es' ? 'Paleta de Color' : 'Color Palette'}
+            </Text>
+            <View style={styles.themesRow}>
+              {THEME_KEYS.map((key) => {
+                const cfg = BubbleThemesConfig[key];
+                const isSelected = selectedTheme === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => setSelectedTheme(key)}
+                    style={[
+                      styles.themePill,
+                      { backgroundColor: cfg.backgroundColor, borderColor: cfg.borderColor },
+                      isSelected && styles.themePillSelected,
+                    ]}
+                  >
+                    <Text style={[styles.themePillText, { color: cfg.textColor }]}>
+                      {language === 'es' ? cfg.name : cfg.nameEn}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
 
           {/* Botones de Accion */}
           <View style={styles.actionsRow}>
@@ -163,128 +182,138 @@ export const BubbleCustomizerModal: React.FC<BubbleCustomizerModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   modalCard: {
     width: '100%',
-    maxWidth: 340,
-    backgroundColor: PurinTheme.colors.backgroundLight,
+    maxWidth: 360,
+    maxHeight: '85%',
+    backgroundColor: '#1E1B18', // Fondo oscuro como en la referencia para resaltar las burbujas
     borderRadius: PurinTheme.borders.radiusCard,
     borderWidth: PurinTheme.borders.thick,
     borderColor: PurinTheme.colors.stroke,
-    padding: 20,
+    padding: 18,
   },
-  title: {
-    fontSize: 18,
+  headerTitle: {
+    fontSize: 20,
     fontWeight: '800',
-    color: PurinTheme.colors.text,
-    textAlign: 'center',
+    color: '#FFF8B8',
     marginBottom: 12,
+    textAlign: 'left',
+    paddingHorizontal: 4,
   },
-  previewContainer: {
-    backgroundColor: '#FFF9D2',
-    padding: 12,
+  scrollArea: {
+    maxHeight: 420,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingVertical: 4,
+  },
+  cardItem: {
+    width: '48%',
+    backgroundColor: '#2B2621',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#4A3B32',
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardItemSelected: {
+    borderColor: '#FFE066',
+    borderWidth: 2.5,
+    backgroundColor: '#383028',
+  },
+  miniBubbleContainer: {
+    position: 'relative',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  miniBubble: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: PurinTheme.colors.stroke,
-    marginBottom: 14,
-  },
-  previewLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: PurinTheme.colors.textMuted,
-    marginBottom: 6,
-  },
-  previewBubble: {
-    alignSelf: 'flex-end',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 2,
     borderBottomRightRadius: 4,
   },
-  previewText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  sectionTitle: {
+  miniBubbleText: {
     fontSize: 12,
     fontWeight: '700',
-    color: PurinTheme.colors.text,
-    marginTop: 8,
-    marginBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#D7CCC8',
+  },
+  cardTitleSelected: {
+    color: '#FFE066',
+    fontWeight: '800',
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFF8B8',
+    marginTop: 16,
+    marginBottom: 10,
+    paddingHorizontal: 4,
   },
   themesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 8,
+    paddingHorizontal: 2,
+    marginBottom: 12,
   },
-  themeCircle: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: PurinTheme.borders.radiusPill,
-    borderWidth: 2,
-  },
-  themeCircleSelected: {
-    borderWidth: 3,
-    transform: [{ scale: 1.05 }],
-  },
-  themeCircleText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  expressionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  expressionBtn: {
+  themePill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#FFF9D2',
     borderRadius: PurinTheme.borders.radiusPill,
     borderWidth: 1.5,
-    borderColor: PurinTheme.colors.stroke,
   },
-  expressionBtnSelected: {
-    backgroundColor: PurinTheme.colors.primary,
+  themePillSelected: {
     borderWidth: 2.5,
+    transform: [{ scale: 1.05 }],
   },
-  expressionText: {
-    fontSize: 13,
+  themePillText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: PurinTheme.colors.text,
   },
   actionsRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 8,
+    gap: 12,
+    marginTop: 14,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderColor: '#3E3228',
   },
   cancelBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: PurinTheme.borders.radiusPill,
   },
   cancelText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: PurinTheme.colors.textMuted,
+    color: '#D7CCC8',
   },
   applyBtn: {
     backgroundColor: PurinTheme.colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: PurinTheme.borders.radiusPill,
     borderWidth: PurinTheme.borders.medium,
     borderColor: PurinTheme.colors.stroke,
   },
   applyText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
     color: PurinTheme.colors.text,
   },
