@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "YoutubePurin",
+    "slug": "youtube-purin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/purin_logo.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF8B8",
+        "foregroundImage": "./assets/images/purin_logo.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/images/purin_logo.png"
+    }
+  }
+}
