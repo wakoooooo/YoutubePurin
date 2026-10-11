@@ -1,5 +1,5 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect, forwardRef } from 'react';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import YoutubePlayer, { YoutubeIframeRef } from 'react-native-youtube-iframe';
 import { PurinTheme } from '../theme/colors';
 
@@ -12,25 +12,18 @@ interface YoutubePlayerContainerProps {
   statusBadgeText?: string;
 }
 
-export const YoutubePlayerContainer: React.FC<YoutubePlayerContainerProps> = ({
-  videoId,
-  playing,
-  onStateChange,
-  title = 'YouTube Video',
-  isHost = false,
-  statusBadgeText,
-}) => {
-  const playerRef = useRef<YoutubeIframeRef>(null);
+export const YoutubePlayerContainer = forwardRef<
+  YoutubeIframeRef,
+  YoutubePlayerContainerProps
+>(({ videoId, playing, onStateChange, title = 'YouTube Video', isHost = false, statusBadgeText }, ref) => {
   const [isReady, setIsReady] = useState(false);
 
   // Dimensiones exactas calculadas para 16:9
   const windowWidth = Dimensions.get('window').width;
-  // Margen horizontal de pantalla: 32px (16 de cada lado), borde contenedor: 6px
   const playerWidth = Math.floor(windowWidth - 38);
   const playerHeight = Math.floor(playerWidth * (9 / 16));
 
   useEffect(() => {
-    // Si cambia el video, reiniciar estado de preparacion
     setIsReady(false);
   }, [videoId]);
 
@@ -57,7 +50,7 @@ export const YoutubePlayerContainer: React.FC<YoutubePlayerContainerProps> = ({
 
       <View style={[styles.playerFrame, { height: playerHeight, width: playerWidth }]}>
         <YoutubePlayer
-          ref={playerRef}
+          ref={ref}
           width={playerWidth}
           height={playerHeight}
           play={playing}
@@ -85,7 +78,7 @@ export const YoutubePlayerContainer: React.FC<YoutubePlayerContainerProps> = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

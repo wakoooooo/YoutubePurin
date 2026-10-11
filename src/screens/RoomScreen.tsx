@@ -11,15 +11,17 @@ import {
   TouchableWithoutFeedback,
   Alert,
 } from 'react-native';
+import { YoutubeIframeRef } from 'react-native-youtube-iframe';
 import { PurinTheme } from '../theme/colors';
 import { PurinInput } from '../components/PurinInput';
 import { PurinButton } from '../components/PurinButton';
 import { ChatBubble } from '../components/ChatBubble';
 import { YoutubePlayerContainer } from '../components/YoutubePlayerContainer';
 import { LanguageToggle } from '../components/LanguageToggle';
+import { BubbleCustomizerModal } from '../components/BubbleCustomizerModal';
 import { translations, Language } from '../i18n/translations';
 import { extractYoutubeId } from '../utils/youtube';
-import { ChatMessage } from '../types';
+import { ChatMessage, BubbleCustomization } from '../types';
 
 interface RoomScreenProps {
   roomId: string;
@@ -46,6 +48,14 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const [inputText, setInputText] = useState('');
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [showVideoInput, setShowVideoInput] = useState(false);
+  const [showCustomizer, setShowCustomizer] = useState(false);
+
+  // Estado de personalizacion de burbuja del usuario
+  const [bubbleCustomization, setBubbleCustomization] = useState<BubbleCustomization>({
+    themeId: 'flan',
+    avatarExpression: ':3',
+    borderRadius: 20,
+  });
 
   // Chat inicial limpio: unicamente notificacion del sistema de bienvenida a la sala
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -60,6 +70,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   ]);
 
   const flatListRef = useRef<FlatList>(null);
+  const playerRef = useRef<YoutubeIframeRef>(null);
 
   // Auto-scroll del chat cuando se abre o cierra el teclado virtual
   useEffect(() => {
@@ -86,6 +97,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
       userName: userName,
       text: inputText.trim(),
       timestamp: Date.now(),
+      customization: { ...bubbleCustomization },
     };
 
     setMessages((prev) => [...prev, newMessage]);
@@ -96,10 +108,17 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     }, 100);
   };
 
-  // Control bidireccional de pausa y reproduccion
+  // Control bidireccional e imperativo directo de pausa y reproduccion
   const handleTogglePlay = () => {
     const nextState = !isPlaying;
     setIsPlaying(nextState);
+
+    // Ejecucion imperativa directa en el reproductor de YouTube
+    if (nextState) {
+      playerRef.current?.playVideo?.();
+    } else {
+      playerRef.current?.pauseVideo?.();
+    }
 
     const actionText = nextState
       ? t.resumedVideoSystem.replace('{name}', userName)
@@ -139,6 +158,10 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     setNewVideoUrl('');
     setShowVideoInput(false);
     setIsPlaying(true);
+
+    setTimeout(() => {
+      playerRef.current?.playVideo?.();
+    }, 500);
 
     setMessages((prev) => [
       ...prev,
@@ -184,6 +207,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         {/* Seccion del Reproductor de Video */}
         <View style={styles.playerSection}>
           <YoutubePlayerContainer
+            ref={playerRef}
             videoId={videoId}
             playing={isPlaying}
             onStateChange={handlePlayerStateChange}
@@ -228,12 +252,31 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
           style={styles.chatAvoidingContainer}
         >
           <View style={[styles.chatSection, PurinTheme.shadows.cuteSm]}>
+            {/* Cabecera del Chat con Boton de Personalizacion */}
+            <View style={styles.chatHeaderRow}>
+              <Text style={styles.chatHeaderTitle}>
+                {currentLanguage === 'es' ? 'Chat en vivo' : 'Live Chat'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowCustomizer(true)}
+                style={styles.customizeBubbleBtn}
+              >
+                <Text style={styles.customizeBubbleBtnText}>
+                  {currentLanguage === 'es' ? 'Personalizar Burbuja' : 'Customize Bubble'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <FlatList
               ref={flatListRef}
               data={messages}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <ChatBubble message={item} isSelf={item.userId === 'self'} />
+                <ChatBubble
+                  message={item}
+                  isSelf={item.userId === 'self'}
+                  selfCustomization={bubbleCustomization}
+                />
               )}
               contentContainerStyle={styles.messagesList}
               showsVerticalScrollIndicator={false}
@@ -259,6 +302,15 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
             </View>
           </View>
         </KeyboardAvoidingView>
+
+        {/* Modal de Personalizacion de Burbujas */}
+        <BubbleCustomizerModal
+          visible={showCustomizer}
+          onClose={() => setShowCustomizer(false)}
+          customization={bubbleCustomization}
+          onSave={setBubbleCustomization}
+          language={currentLanguage}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
@@ -380,6 +432,33 @@ const styles = StyleSheet.create({
     borderColor: PurinTheme.colors.stroke,
     padding: 12,
     justifyContent: 'space-between',
+  },
+  chatHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderColor: '#F0EAE1',
+    marginBottom: 6,
+  },
+  chatHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: PurinTheme.colors.textMuted,
+  },
+  customizeBubbleBtn: {
+    backgroundColor: '#FFF9D2',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: PurinTheme.borders.radiusPill,
+    borderWidth: 1,
+    borderColor: PurinTheme.colors.stroke,
+  },
+  customizeBubbleBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: PurinTheme.colors.text,
   },
   messagesList: {
     flexGrow: 1,

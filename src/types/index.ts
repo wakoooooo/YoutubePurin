@@ -4,6 +4,14 @@ export interface User {
   isHost: boolean;
 }
 
+export type BubbleThemeId = 'flan' | 'caramelo' | 'fresa' | 'matcha' | 'lavanda';
+
+export interface BubbleCustomization {
+  themeId: BubbleThemeId;
+  avatarExpression: ':3' | '(^w^)' | '(o.o)' | '(u.u)';
+  borderRadius: number;
+}
+
 export interface ChatMessage {
   id: string;
   userId: string;
@@ -11,6 +19,7 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   isSystem?: boolean;
+  customization?: BubbleCustomization;
 }
 
 export interface FloatingReaction {

@@ -1,3 +1,5 @@
+import { BubbleThemeId } from '../types';
+
 export const PurinTheme = {
   colors: {
     background: '#FFF8B8', // Amarillo pastel principal
@@ -41,5 +43,52 @@ export const PurinTheme = {
       shadowRadius: 0,
       elevation: 2,
     },
+  },
+};
+
+export const BubbleThemesConfig: Record<
+  BubbleThemeId,
+  {
+    name: string;
+    nameEn: string;
+    backgroundColor: string;
+    textColor: string;
+    borderColor: string;
+  }
+> = {
+  flan: {
+    name: 'Flan',
+    nameEn: 'Flan',
+    backgroundColor: '#FFE066',
+    textColor: '#583226',
+    borderColor: '#583226',
+  },
+  caramelo: {
+    name: 'Caramelo',
+    nameEn: 'Caramel',
+    backgroundColor: '#F7C873',
+    textColor: '#4E342E',
+    borderColor: '#5D4037',
+  },
+  fresa: {
+    name: 'Fresa',
+    nameEn: 'Strawberry',
+    backgroundColor: '#FFD1DC',
+    textColor: '#583226',
+    borderColor: '#583226',
+  },
+  matcha: {
+    name: 'Matcha',
+    nameEn: 'Matcha',
+    backgroundColor: '#C8E6C9',
+    textColor: '#2E473B',
+    borderColor: '#3E5C49',
+  },
+  lavanda: {
+    name: 'Lavanda',
+    nameEn: 'Lavender',
+    backgroundColor: '#E1BEE7',
+    textColor: '#4A148C',
+    borderColor: '#6A1B9A',
   },
 };

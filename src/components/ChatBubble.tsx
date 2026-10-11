@@ -1,14 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { PurinTheme } from '../theme/colors';
-import { ChatMessage } from '../types';
+import { PurinTheme, BubbleThemesConfig } from '../theme/colors';
+import { ChatMessage, BubbleCustomization } from '../types';
 
 interface ChatBubbleProps {
   message: ChatMessage;
   isSelf: boolean;
+  selfCustomization?: BubbleCustomization;
 }
 
-export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, isSelf }) => {
+export const ChatBubble: React.FC<ChatBubbleProps> = ({
+  message,
+  isSelf,
+  selfCustomization,
+}) => {
   if (message.isSystem) {
     return (
       <View style={styles.systemContainer}>
@@ -19,21 +24,45 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, isSelf }) => {
     );
   }
 
+  // Personalizacion activa
+  const activeCustomization =
+    message.customization || (isSelf ? selfCustomization : undefined);
+
+  const themeConfig = activeCustomization
+    ? BubbleThemesConfig[activeCustomization.themeId]
+    : undefined;
+
+  const bubbleBg = isSelf
+    ? (themeConfig ? themeConfig.backgroundColor : PurinTheme.colors.bubbleSelf)
+    : PurinTheme.colors.bubbleOther;
+
+  const textColor = isSelf && themeConfig ? themeConfig.textColor : PurinTheme.colors.text;
+  const borderColor = isSelf && themeConfig ? themeConfig.borderColor : PurinTheme.colors.stroke;
+  const customRadius = activeCustomization?.borderRadius || PurinTheme.borders.radiusBubble;
+  const expression = activeCustomization?.avatarExpression || ':3';
+
   return (
     <View style={[styles.row, isSelf ? styles.rowSelf : styles.rowOther]}>
       {!isSelf && (
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>:3</Text>
+          <Text style={styles.avatarText}>{expression}</Text>
         </View>
       )}
       <View
         style={[
           styles.bubble,
+          {
+            backgroundColor: bubbleBg,
+            borderColor: borderColor,
+            borderRadius: customRadius,
+          },
           isSelf ? styles.bubbleSelf : styles.bubbleOther,
         ]}
       >
         {!isSelf && <Text style={styles.author}>{message.userName}</Text>}
-        <Text style={styles.messageText}>{message.text}</Text>
+        <Text style={[styles.messageText, { color: textColor }]}>
+          {message.text}
+        </Text>
       </View>
     </View>
   );
@@ -64,7 +93,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   avatarText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
     color: PurinTheme.colors.text,
   },
@@ -72,16 +101,12 @@ const styles = StyleSheet.create({
     maxWidth: '78%',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: PurinTheme.borders.radiusBubble,
     borderWidth: PurinTheme.borders.thin,
-    borderColor: PurinTheme.colors.stroke,
   },
   bubbleSelf: {
-    backgroundColor: PurinTheme.colors.bubbleSelf,
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: PurinTheme.colors.bubbleOther,
     borderBottomLeftRadius: 4,
   },
   author: {
@@ -93,7 +118,6 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 13,
     fontWeight: '600',
-    color: PurinTheme.colors.text,
     lineHeight: 18,
   },
   systemContainer: {
