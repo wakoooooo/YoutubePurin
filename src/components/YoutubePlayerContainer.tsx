@@ -9,14 +9,16 @@ interface YoutubePlayerContainerProps {
   onStateChange: (state: string) => void;
   title?: string;
   isHost?: boolean;
+  statusBadgeText?: string;
 }
 
 export const YoutubePlayerContainer: React.FC<YoutubePlayerContainerProps> = ({
   videoId,
   playing,
   onStateChange,
-  title = 'Video en reproduccion',
+  title = 'YouTube Video',
   isHost = false,
+  statusBadgeText,
 }) => {
   const playerRef = useRef<YoutubeIframeRef>(null);
 
@@ -30,20 +32,30 @@ export const YoutubePlayerContainer: React.FC<YoutubePlayerContainerProps> = ({
           </Text>
         </View>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>{isHost ? 'Anfitrion' : 'Sincronizado'}</Text>
+          <Text style={styles.badgeText}>
+            {statusBadgeText || (isHost ? 'Anfitrion' : 'Sincronizado')}
+          </Text>
         </View>
       </View>
 
       <View style={styles.playerFrame}>
         <YoutubePlayer
           ref={playerRef}
-          height={205}
+          height={210}
           play={playing}
           videoId={videoId}
           onChangeState={onStateChange}
           webViewProps={{
             allowsFullscreenVideo: true,
-            androidLayerType: 'hardware',
+            androidLayerType: 'software',
+            renderToHardwareTextureAndroid: false,
+            allowsInlineMediaPlayback: true,
+            mediaPlaybackRequiresUserAction: false,
+          }}
+          initialPlayerParams={{
+            preventFullScreen: false,
+            showClosedCaptions: false,
+            controls: true,
           }}
         />
       </View>
@@ -102,7 +114,7 @@ const styles = StyleSheet.create({
   },
   playerFrame: {
     backgroundColor: '#000000',
-    alignItems: 'center',
+    minHeight: 210,
     justifyContent: 'center',
   },
 });

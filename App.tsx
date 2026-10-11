@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
-import { SafeAreaView, StyleSheet, StatusBar } from 'react-native';
+import { SafeAreaView, StyleSheet, LogBox } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { PurinTheme } from './src/theme/colors';
 import { JoinRoomScreen } from './src/screens/JoinRoomScreen';
 import { RoomScreen } from './src/screens/RoomScreen';
+import { Language } from './src/i18n/translations';
+
+// Ignorar advertencias internas de red y temporizadores del CLI de desarrollo
+LogBox.ignoreLogs([
+  'Cannot connect to Expo CLI',
+  'Setting a timer',
+  'Animated: `useNativeDriver`',
+]);
 
 interface ActiveRoomData {
   roomId: string;
@@ -14,6 +22,7 @@ interface ActiveRoomData {
 
 export default function App() {
   const [activeRoom, setActiveRoom] = useState<ActiveRoomData | null>(null);
+  const [language, setLanguage] = useState<Language>('es');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -24,10 +33,14 @@ export default function App() {
           userName={activeRoom.userName}
           isHost={activeRoom.isHost}
           initialVideoId={activeRoom.initialVideoId}
+          currentLanguage={language}
+          onLanguageChange={setLanguage}
           onLeaveRoom={() => setActiveRoom(null)}
         />
       ) : (
         <JoinRoomScreen
+          currentLanguage={language}
+          onLanguageChange={setLanguage}
           onEnterRoom={(data) => setActiveRoom(data)}
         />
       )}

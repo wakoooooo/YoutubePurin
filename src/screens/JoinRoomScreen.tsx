@@ -12,8 +12,13 @@ import {
 import { PurinTheme } from '../theme/colors';
 import { PurinButton } from '../components/PurinButton';
 import { PurinInput } from '../components/PurinInput';
+import { LanguageToggle } from '../components/LanguageToggle';
+import { translations, Language } from '../i18n/translations';
+import { extractYoutubeId } from '../utils/youtube';
 
 interface JoinRoomScreenProps {
+  currentLanguage: Language;
+  onLanguageChange: (lang: Language) => void;
   onEnterRoom: (roomData: {
     roomId: string;
     userName: string;
@@ -22,25 +27,24 @@ interface JoinRoomScreenProps {
   }) => void;
 }
 
-export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ onEnterRoom }) => {
+export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({
+  currentLanguage,
+  onLanguageChange,
+  onEnterRoom,
+}) => {
+  const t = translations[currentLanguage];
   const [userName, setUserName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
 
-  const extractYoutubeId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : url.trim();
-  };
-
   const handleJoin = () => {
     if (!userName.trim()) {
-      Alert.alert('Falta tu nombre', 'Por favor ingresa un nombre o apodo.');
+      Alert.alert(t.missingNameTitle, t.missingNameMessage);
       return;
     }
     if (!roomCode.trim()) {
-      Alert.alert('Falta el codigo', 'Ingresa el codigo de la sala a la que deseas unirte.');
+      Alert.alert(t.missingCodeTitle, t.missingCodeMessage);
       return;
     }
 
@@ -53,14 +57,21 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ onEnterRoom }) =
 
   const handleCreate = () => {
     if (!userName.trim()) {
-      Alert.alert('Falta tu nombre', 'Por favor ingresa un nombre o apodo.');
+      Alert.alert(t.missingNameTitle, t.missingNameMessage);
       return;
     }
 
+    let parsedVideoId = 'jfKfPfyJRdk'; // Lo-Fi hip hop radio por defecto
+    if (videoUrl.trim()) {
+      const extracted = extractYoutubeId(videoUrl);
+      if (!extracted) {
+        Alert.alert(t.invalidLinkTitle, t.invalidLinkMessage);
+        return;
+      }
+      parsedVideoId = extracted;
+    }
+
     const generatedCode = 'PURIN-' + Math.floor(100 + Math.random() * 900);
-    const parsedVideoId = videoUrl.trim()
-      ? extractYoutubeId(videoUrl)
-      : 'jfKfPfyJRdk'; // Lo-Fi hip hop radio por defecto
 
     onEnterRoom({
       roomId: generatedCode,
@@ -76,6 +87,14 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ onEnterRoom }) =
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Selector de Idioma en la parte superior derecha */}
+        <View style={styles.topLanguageRow}>
+          <LanguageToggle
+            currentLanguage={currentLanguage}
+            onLanguageChange={onLanguageChange}
+          />
+        </View>
+
         {/* Encabezado con Logo Transparente del Personaje */}
         <View style={styles.header}>
           <Image
@@ -83,15 +102,15 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ onEnterRoom }) =
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.title}>YoutubePurin</Text>
-          <Text style={styles.subtitle}>Mira videos al mismo tiempo con tu gente</Text>
+          <Text style={styles.title}>{t.appTitle}</Text>
+          <Text style={styles.subtitle}>{t.appSubtitle}</Text>
         </View>
 
         {/* Tarjeta de Formulario */}
         <View style={[styles.card, PurinTheme.shadows.cute]}>
           <PurinInput
-            label="Tu Nombre o Apodo:"
-            placeholder="Ej. Pudincito"
+            label={t.nicknameLabel}
+            placeholder={t.nicknamePlaceholder}
             value={userName}
             onChangeText={setUserName}
             maxLength={18}
@@ -100,23 +119,23 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ onEnterRoom }) =
           {!isCreating ? (
             <>
               <PurinInput
-                label="Codigo de la Sala:"
-                placeholder="Ej. PURIN-402"
+                label={t.roomCodeLabel}
+                placeholder={t.roomCodePlaceholder}
                 value={roomCode}
                 onChangeText={setRoomCode}
                 autoCapitalize="characters"
               />
 
               <PurinButton
-                title="Unirse a la Sala"
+                title={t.joinButton}
                 onPress={handleJoin}
                 style={styles.actionBtn}
               />
 
               <View style={styles.divider}>
-                <Text style={styles.dividerText}>o tambien puedes</Text>
+                <Text style={styles.dividerText}>{t.createOptionText}</Text>
                 <PurinButton
-                  title="Crear una Sala Nueva"
+                  title={t.createButtonOption}
                   variant="secondary"
                   onPress={() => setIsCreating(true)}
                   style={styles.secondaryBtn}
@@ -126,21 +145,21 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({ onEnterRoom }) =
           ) : (
             <>
               <PurinInput
-                label="Enlace o ID de YouTube inicial (opcional):"
-                placeholder="https://youtu.be/..."
+                label={t.initialVideoLabel}
+                placeholder={t.initialVideoPlaceholder}
                 value={videoUrl}
                 onChangeText={setVideoUrl}
                 autoCapitalize="none"
               />
 
               <PurinButton
-                title="Crear Sala y Entrar"
+                title={t.createAndEnterButton}
                 onPress={handleCreate}
                 style={styles.actionBtn}
               />
 
               <PurinButton
-                title="Volver a Unirse con Codigo"
+                title={t.backToJoinButton}
                 variant="secondary"
                 onPress={() => setIsCreating(false)}
                 style={styles.secondaryBtn}
@@ -164,6 +183,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
+  topLanguageRow: {
+    width: '100%',
+    alignItems: 'flex-end',
+    marginBottom: 8,
+  },
   header: {
     alignItems: 'center',
     marginBottom: 20,
@@ -184,6 +208,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: PurinTheme.colors.textMuted,
     marginTop: 4,
+    textAlign: 'center',
   },
   card: {
     width: '100%',

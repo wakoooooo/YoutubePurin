@@ -7,21 +7,27 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Animated,
-  Dimensions,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Alert,
 } from 'react-native';
 import { PurinTheme } from '../theme/colors';
 import { PurinInput } from '../components/PurinInput';
 import { PurinButton } from '../components/PurinButton';
 import { ChatBubble } from '../components/ChatBubble';
 import { YoutubePlayerContainer } from '../components/YoutubePlayerContainer';
-import { ChatMessage, FloatingReaction } from '../types';
+import { LanguageToggle } from '../components/LanguageToggle';
+import { translations, Language } from '../i18n/translations';
+import { extractYoutubeId } from '../utils/youtube';
+import { ChatMessage } from '../types';
 
 interface RoomScreenProps {
   roomId: string;
   userName: string;
   isHost: boolean;
   initialVideoId?: string;
+  currentLanguage: Language;
+  onLanguageChange: (lang: Language) => void;
   onLeaveRoom: () => void;
 }
 
@@ -30,40 +36,46 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   userName,
   isHost,
   initialVideoId = 'jfKfPfyJRdk',
+  currentLanguage,
+  onLanguageChange,
   onLeaveRoom,
 }) => {
+  const t = translations[currentLanguage];
   const [videoId, setVideoId] = useState(initialVideoId);
   const [isPlaying, setIsPlaying] = useState(true);
   const [inputText, setInputText] = useState('');
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [showVideoInput, setShowVideoInput] = useState(false);
-  const [reactions, setReactions] = useState<FloatingReaction[]>([]);
 
+  // Chat inicial limpio: unicamente notificacion del sistema de bienvenida a la sala
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: 'sys-1',
+      id: 'sys-join',
       userId: 'system',
       userName: 'Sistema',
-      text: `Te has unido a la sala ${roomId}`,
+      text: t.joinedRoomSystem.replace('{roomId}', roomId),
       timestamp: Date.now(),
       isSystem: true,
-    },
-    {
-      id: 'msg-1',
-      userId: 'user-mimi',
-      userName: 'Mimi',
-      text: 'Hola, esta cancion esta perfecta para relajarse',
-      timestamp: Date.now() - 60000,
     },
   ]);
 
   const flatListRef = useRef<FlatList>(null);
 
-  const extractYoutubeId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : url.trim();
-  };
+  // Auto-scroll del chat cuando se abre o cierra el teclado virtual
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 150);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+    };
+  }, []);
 
   const handleSendMessage = () => {
     if (!inputText.trim()) return;
@@ -84,13 +96,14 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     }, 100);
   };
 
+  // Control bidireccional de pausa y reproduccion
   const handleTogglePlay = () => {
     const nextState = !isPlaying;
     setIsPlaying(nextState);
 
     const actionText = nextState
-      ? `${userName} reanudo el video`
-      : `${userName} pauso el video`;
+      ? t.resumedVideoSystem.replace('{name}', userName)
+      : t.pausedVideoSystem.replace('{name}', userName);
 
     setMessages((prev) => [
       ...prev,
@@ -105,12 +118,27 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     ]);
   };
 
+  const handlePlayerStateChange = (state: string) => {
+    if (state === 'playing') {
+      setIsPlaying(true);
+    } else if (state === 'paused' || state === 'ended') {
+      setIsPlaying(false);
+    }
+  };
+
   const handleChangeVideo = () => {
     if (!newVideoUrl.trim()) return;
-    const extracted = extractYoutubeId(newVideoUrl);
-    setVideoId(extracted);
+
+    const parsedId = extractYoutubeId(newVideoUrl);
+    if (!parsedId) {
+      Alert.alert(t.invalidLinkTitle, t.invalidLinkMessage);
+      return;
+    }
+
+    setVideoId(parsedId);
     setNewVideoUrl('');
     setShowVideoInput(false);
+    setIsPlaying(true);
 
     setMessages((prev) => [
       ...prev,
@@ -118,160 +146,121 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         id: 'sys-' + Date.now(),
         userId: 'system',
         userName: 'Sistema',
-        text: `${userName} cambio el video`,
+        text: t.changedVideoSystem.replace('{name}', userName),
         timestamp: Date.now(),
         isSystem: true,
       },
     ]);
   };
 
-  const handleTriggerReaction = (type: FloatingReaction['type'], label: string) => {
-    const newReaction: FloatingReaction = {
-      id: 'rx-' + Date.now() + Math.random(),
-      type,
-      label,
-      x: Math.random() * (Dimensions.get('window').width - 120) + 20,
-    };
-
-    setReactions((prev) => [...prev, newReaction]);
-
-    setTimeout(() => {
-      setReactions((prev) => prev.filter((r) => r.id !== newReaction.id));
-    }, 1500);
-  };
-
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      {/* Barra Superior de la Sala */}
-      <View style={styles.topBar}>
-        <View style={styles.roomInfo}>
-          <View style={styles.onlineDot} />
-          <View>
-            <Text style={styles.roomCodeText}>Sala: {roomId}</Text>
-            <Text style={styles.onlineCountText}>3 personas conectadas</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.container}>
+        {/* Barra Superior con Informacion de Sala y Selector de Idioma */}
+        <View style={styles.topBar}>
+          <View style={styles.roomInfo}>
+            <View style={styles.onlineDot} />
+            <View>
+              <Text style={styles.roomCodeText}>
+                {t.roomPrefix} {roomId}
+              </Text>
+              <Text style={styles.onlineCountText}>
+                {t.connectedCount.replace('{count}', '3')}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        <TouchableOpacity onPress={onLeaveRoom} style={styles.leaveButton}>
-          <Text style={styles.leaveButtonText}>Salir</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Contenedor del Reproductor de YouTube */}
-      <View style={styles.playerSection}>
-        <YoutubePlayerContainer
-          videoId={videoId}
-          playing={isPlaying}
-          onStateChange={(state) => {
-            if (state === 'ended') setIsPlaying(false);
-          }}
-          title="Lo-Fi Chill Beats live"
-          isHost={isHost}
-        />
-
-        {/* Controles de Sincronizacion */}
-        <View style={styles.controlsRow}>
-          <TouchableOpacity onPress={handleTogglePlay} style={styles.syncBtn}>
-            <Text style={styles.syncBtnText}>
-              {isPlaying ? 'Pausar para todos' : 'Reproducir para todos'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setShowVideoInput(!showVideoInput)}
-            style={styles.changeVideoBtn}
-          >
-            <Text style={styles.changeVideoBtnText}>Cambiar Video</Text>
-          </TouchableOpacity>
-        </View>
-
-        {showVideoInput && (
-          <View style={styles.changeVideoContainer}>
-            <PurinInput
-              placeholder="Pega nuevo link de YouTube..."
-              value={newVideoUrl}
-              onChangeText={setNewVideoUrl}
+          <View style={styles.topActions}>
+            <LanguageToggle
+              currentLanguage={currentLanguage}
+              onLanguageChange={onLanguageChange}
             />
-            <PurinButton title="Cargar" onPress={handleChangeVideo} />
+            <TouchableOpacity onPress={onLeaveRoom} style={styles.leaveButton}>
+              <Text style={styles.leaveButtonText}>{t.leaveButton}</Text>
+            </TouchableOpacity>
           </View>
-        )}
-      </View>
-
-      {/* Seccion de Chat Tematizado */}
-      <View style={[styles.chatSection, PurinTheme.shadows.cuteSm]}>
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ChatBubble message={item} isSelf={item.userId === 'self'} />
-          )}
-          contentContainerStyle={styles.messagesList}
-          showsVerticalScrollIndicator={false}
-        />
-
-        {/* Reacciones Flotantes Animadas */}
-        {reactions.map((r) => (
-          <View
-            key={r.id}
-            style={[styles.floatingBadge, { left: r.x }]}
-          >
-            <Text style={styles.floatingBadgeText}>[{r.label}]</Text>
-          </View>
-        ))}
-
-        {/* Barra de Reacciones Rapidas */}
-        <View style={styles.reactionsBar}>
-          <TouchableOpacity
-            onPress={() => handleTriggerReaction('flan', 'Flan')}
-            style={styles.reactionBtn}
-          >
-            <Text style={styles.reactionText}>Flan</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => handleTriggerReaction('patita', 'Patita')}
-            style={styles.reactionBtn}
-          >
-            <Text style={styles.reactionText}>Patita</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => handleTriggerReaction('amor', 'Amor')}
-            style={[styles.reactionBtn, styles.heartBtn]}
-          >
-            <Text style={styles.reactionText}>Amor</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => handleTriggerReaction('huesito', 'Huesito')}
-            style={styles.reactionBtn}
-          >
-            <Text style={styles.reactionText}>Huesito</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* Barra de Entrada de Texto */}
-        <View style={styles.inputRow}>
-          <View style={styles.inputWrapper}>
-            <PurinInput
-              placeholder="Escribe un mensajito..."
-              value={inputText}
-              onChangeText={setInputText}
-              onSubmitEditing={handleSendMessage}
-            />
-          </View>
-          <PurinButton
-            title="Enviar"
-            onPress={handleSendMessage}
-            style={styles.sendBtn}
+        {/* Seccion del Reproductor de Video */}
+        <View style={styles.playerSection}>
+          <YoutubePlayerContainer
+            videoId={videoId}
+            playing={isPlaying}
+            onStateChange={handlePlayerStateChange}
+            title="YouTube Player"
+            isHost={isHost}
+            statusBadgeText={isHost ? t.hostBadge : t.synchronizedBadge}
           />
+
+          {/* Botones de Control de Sincronizacion */}
+          <View style={styles.controlsRow}>
+            <TouchableOpacity onPress={handleTogglePlay} style={styles.syncBtn}>
+              <Text style={styles.syncBtnText}>
+                {isPlaying ? t.pauseForAll : t.playForAll}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setShowVideoInput(!showVideoInput)}
+              style={styles.changeVideoBtn}
+            >
+              <Text style={styles.changeVideoBtnText}>{t.changeVideo}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {showVideoInput && (
+            <View style={styles.changeVideoContainer}>
+              <PurinInput
+                placeholder={t.newVideoPlaceholder}
+                value={newVideoUrl}
+                onChangeText={setNewVideoUrl}
+                autoCapitalize="none"
+              />
+              <PurinButton title={t.loadButton} onPress={handleChangeVideo} />
+            </View>
+          )}
         </View>
+
+        {/* Seccion de Chat Desplazable con Teclado */}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 70 : 20}
+          style={styles.chatAvoidingContainer}
+        >
+          <View style={[styles.chatSection, PurinTheme.shadows.cuteSm]}>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <ChatBubble message={item} isSelf={item.userId === 'self'} />
+              )}
+              contentContainerStyle={styles.messagesList}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            />
+
+            {/* Barra de Entrada de Texto */}
+            <View style={styles.inputRow}>
+              <View style={styles.inputWrapper}>
+                <PurinInput
+                  placeholder={t.chatPlaceholder}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  onSubmitEditing={handleSendMessage}
+                  returnKeyType="send"
+                />
+              </View>
+              <PurinButton
+                title={t.sendButton}
+                onPress={handleSendMessage}
+                style={styles.sendBtn}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
-    </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -281,33 +270,33 @@ const styles = StyleSheet.create({
     backgroundColor: PurinTheme.colors.background,
     paddingTop: Platform.OS === 'android' ? 36 : 48,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: PurinTheme.colors.backgroundLight,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: PurinTheme.borders.radiusBubble,
     borderWidth: PurinTheme.borders.medium,
     borderColor: PurinTheme.colors.stroke,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   roomInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   onlineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
     backgroundColor: PurinTheme.colors.statusOnline,
     marginRight: 8,
   },
   roomCodeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: PurinTheme.colors.text,
   },
@@ -316,9 +305,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: PurinTheme.colors.textMuted,
   },
+  topActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   leaveButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: '#FFE0B2',
     borderRadius: PurinTheme.borders.radiusPill,
     borderWidth: PurinTheme.borders.thin,
@@ -330,7 +324,7 @@ const styles = StyleSheet.create({
     color: PurinTheme.colors.text,
   },
   playerSection: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   controlsRow: {
     flexDirection: 'row',
@@ -375,6 +369,9 @@ const styles = StyleSheet.create({
     borderColor: PurinTheme.colors.stroke,
     marginTop: 6,
   },
+  chatAvoidingContainer: {
+    flex: 1,
+  },
   chatSection: {
     flex: 1,
     backgroundColor: PurinTheme.colors.backgroundLight,
@@ -382,56 +379,17 @@ const styles = StyleSheet.create({
     borderWidth: PurinTheme.borders.thick,
     borderColor: PurinTheme.colors.stroke,
     padding: 12,
-    position: 'relative',
-    overflow: 'hidden',
+    justifyContent: 'space-between',
   },
   messagesList: {
     flexGrow: 1,
-    paddingBottom: 8,
-  },
-  floatingBadge: {
-    position: 'absolute',
-    bottom: 90,
-    backgroundColor: PurinTheme.colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: PurinTheme.borders.radiusPill,
-    borderWidth: PurinTheme.borders.thin,
-    borderColor: PurinTheme.colors.stroke,
-  },
-  floatingBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: PurinTheme.colors.text,
-  },
-  reactionsBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 6,
-    borderTopWidth: 1,
-    borderColor: '#EFEBE9',
-  },
-  reactionBtn: {
-    backgroundColor: '#FFF9D2',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: PurinTheme.borders.radiusPill,
-    borderWidth: PurinTheme.borders.thin,
-    borderColor: PurinTheme.colors.stroke,
-  },
-  heartBtn: {
-    backgroundColor: PurinTheme.colors.accentPink,
-  },
-  reactionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: PurinTheme.colors.text,
+    paddingBottom: 6,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 2,
+    marginTop: 4,
   },
   inputWrapper: {
     flex: 1,
