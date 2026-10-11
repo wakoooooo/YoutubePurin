@@ -10,6 +10,7 @@
       "supportsTablet": true
     },
     "android": {
+      "hardwareAccelerated": true,
       "adaptiveIcon": {
         "backgroundColor": "#FFF8B8",
         "foregroundImage": "./assets/images/purin_logo.png"

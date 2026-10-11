@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { PurinTheme } from '../theme/colors';
 import { PurinButton } from '../components/PurinButton';
@@ -82,93 +84,104 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Selector de Idioma en la parte superior derecha */}
-        <View style={styles.topLanguageRow}>
-          <LanguageToggle
-            currentLanguage={currentLanguage}
-            onLanguageChange={onLanguageChange}
-          />
-        </View>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.container}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 25}
+          style={styles.keyboardView}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
+            {/* Selector de Idioma prominente y de mayor tamano */}
+            <View style={styles.topLanguageRow}>
+              <LanguageToggle
+                size="large"
+                currentLanguage={currentLanguage}
+                onLanguageChange={onLanguageChange}
+              />
+            </View>
 
-        {/* Encabezado con Logo Transparente del Personaje */}
-        <View style={styles.header}>
-          <Image
-            source={require('../../assets/images/purin_logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>{t.appTitle}</Text>
-          <Text style={styles.subtitle}>{t.appSubtitle}</Text>
-        </View>
+            {/* Encabezado con Logo Transparente del Personaje */}
+            <View style={styles.header}>
+              <Image
+                source={require('../../assets/images/purin_logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>{t.appTitle}</Text>
+              <Text style={styles.subtitle}>{t.appSubtitle}</Text>
+            </View>
 
-        {/* Tarjeta de Formulario */}
-        <View style={[styles.card, PurinTheme.shadows.cute]}>
-          <PurinInput
-            label={t.nicknameLabel}
-            placeholder={t.nicknamePlaceholder}
-            value={userName}
-            onChangeText={setUserName}
-            maxLength={18}
-          />
-
-          {!isCreating ? (
-            <>
+            {/* Tarjeta de Formulario */}
+            <View style={[styles.card, PurinTheme.shadows.cute]}>
               <PurinInput
-                label={t.roomCodeLabel}
-                placeholder={t.roomCodePlaceholder}
-                value={roomCode}
-                onChangeText={setRoomCode}
-                autoCapitalize="characters"
+                label={t.nicknameLabel}
+                placeholder={t.nicknamePlaceholder}
+                value={userName}
+                onChangeText={setUserName}
+                maxLength={18}
               />
 
-              <PurinButton
-                title={t.joinButton}
-                onPress={handleJoin}
-                style={styles.actionBtn}
-              />
+              {!isCreating ? (
+                <>
+                  <PurinInput
+                    label={t.roomCodeLabel}
+                    placeholder={t.roomCodePlaceholder}
+                    value={roomCode}
+                    onChangeText={setRoomCode}
+                    autoCapitalize="characters"
+                  />
 
-              <View style={styles.divider}>
-                <Text style={styles.dividerText}>{t.createOptionText}</Text>
-                <PurinButton
-                  title={t.createButtonOption}
-                  variant="secondary"
-                  onPress={() => setIsCreating(true)}
-                  style={styles.secondaryBtn}
-                />
-              </View>
-            </>
-          ) : (
-            <>
-              <PurinInput
-                label={t.initialVideoLabel}
-                placeholder={t.initialVideoPlaceholder}
-                value={videoUrl}
-                onChangeText={setVideoUrl}
-                autoCapitalize="none"
-              />
+                  <PurinButton
+                    title={t.joinButton}
+                    onPress={handleJoin}
+                    style={styles.actionBtn}
+                  />
 
-              <PurinButton
-                title={t.createAndEnterButton}
-                onPress={handleCreate}
-                style={styles.actionBtn}
-              />
+                  <View style={styles.divider}>
+                    <Text style={styles.dividerText}>{t.createOptionText}</Text>
+                    <PurinButton
+                      title={t.createButtonOption}
+                      variant="secondary"
+                      onPress={() => setIsCreating(true)}
+                      style={styles.secondaryBtn}
+                    />
+                  </View>
+                </>
+              ) : (
+                <>
+                  <PurinInput
+                    label={t.initialVideoLabel}
+                    placeholder={t.initialVideoPlaceholder}
+                    value={videoUrl}
+                    onChangeText={setVideoUrl}
+                    autoCapitalize="none"
+                  />
 
-              <PurinButton
-                title={t.backToJoinButton}
-                variant="secondary"
-                onPress={() => setIsCreating(false)}
-                style={styles.secondaryBtn}
-              />
-            </>
-          )}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+                  <PurinButton
+                    title={t.createAndEnterButton}
+                    onPress={handleCreate}
+                    style={styles.actionBtn}
+                  />
+
+                  <PurinButton
+                    title={t.backToJoinButton}
+                    variant="secondary"
+                    onPress={() => setIsCreating(false)}
+                    style={styles.secondaryBtn}
+                  />
+                </>
+              )}
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -177,25 +190,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: PurinTheme.colors.background,
   },
+  keyboardView: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'android' ? 36 : 24,
+    paddingBottom: 32,
   },
   topLanguageRow: {
     width: '100%',
     alignItems: 'flex-end',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   logo: {
-    width: 140,
-    height: 140,
-    marginBottom: 8,
+    width: 130,
+    height: 130,
+    marginBottom: 6,
   },
   title: {
     fontSize: 28,
