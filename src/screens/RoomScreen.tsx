@@ -11,12 +11,14 @@ import {
   TouchableWithoutFeedback,
   Alert,
 } from 'react-native';
-import { YoutubeIframeRef } from 'react-native-youtube-iframe';
 import { PurinTheme } from '../theme/colors';
 import { PurinInput } from '../components/PurinInput';
 import { PurinButton } from '../components/PurinButton';
 import { ChatBubble } from '../components/ChatBubble';
-import { YoutubePlayerContainer } from '../components/YoutubePlayerContainer';
+import {
+  YoutubePlayerContainer,
+  YoutubePlayerRef,
+} from '../components/YoutubePlayerContainer';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { BubbleCustomizerModal } from '../components/BubbleCustomizerModal';
 import { translations, Language } from '../i18n/translations';
@@ -76,8 +78,9 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   ]);
 
   const flatListRef = useRef<FlatList>(null);
-  const playerRef = useRef<YoutubeIframeRef>(null);
+  const playerRef = useRef<YoutubePlayerRef>(null);
   const syncService = useRef<RoomSyncService>(new RoomSyncService());
+  const isSyncingFromRemote = useRef(false);
 
   // Conexion al canal en tiempo real de Supabase
   useEffect(() => {
@@ -86,9 +89,10 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         setOnlineCount(count);
       },
       onVideoSync: (payload) => {
+        isSyncingFromRemote.current = true;
         if (payload.action === 'play') {
           setIsPlaying(true);
-          playerRef.current?.playVideo?.();
+          playerRef.current?.playVideo();
           setMessages((prev) => [
             ...prev,
             {
@@ -102,7 +106,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
           ]);
         } else if (payload.action === 'pause') {
           setIsPlaying(false);
-          playerRef.current?.pauseVideo?.();
+          playerRef.current?.pauseVideo();
           setMessages((prev) => [
             ...prev,
             {
@@ -117,9 +121,8 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         } else if (payload.action === 'change_video') {
           setVideoId(payload.videoId);
           setIsPlaying(true);
-          setTimeout(() => {
-            playerRef.current?.playVideo?.();
-          }, 500);
+          playerRef.current?.loadVideo(payload.videoId);
+          playerRef.current?.playVideo();
           setMessages((prev) => [
             ...prev,
             {
@@ -132,6 +135,9 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
             },
           ]);
         }
+        setTimeout(() => {
+          isSyncingFromRemote.current = false;
+        }, 1200);
       },
       onChatMessage: (incomingMsg) => {
         setMessages((prev) => [...prev, incomingMsg]);
@@ -189,9 +195,9 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     setIsPlaying(nextState);
 
     if (nextState) {
-      playerRef.current?.playVideo?.();
+      playerRef.current?.playVideo();
     } else {
-      playerRef.current?.pauseVideo?.();
+      playerRef.current?.pauseVideo();
     }
 
     // Retransmitir accion al canal de la sala
@@ -217,8 +223,14 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const handlePlayerStateChange = (state: string) => {
     if (state === 'playing') {
       setIsPlaying(true);
-    } else if (state === 'paused' || state === 'ended') {
+      if (!isSyncingFromRemote.current) {
+        syncService.current.sendVideoAction('play', videoId);
+      }
+    } else if (state === 'paused') {
       setIsPlaying(false);
+      if (!isSyncingFromRemote.current) {
+        syncService.current.sendVideoAction('pause', videoId);
+      }
     }
   };
 
@@ -236,9 +248,8 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     setShowVideoInput(false);
     setIsPlaying(true);
 
-    setTimeout(() => {
-      playerRef.current?.playVideo?.();
-    }, 500);
+    playerRef.current?.loadVideo(parsedId);
+    playerRef.current?.playVideo();
 
     // Retransmitir nuevo video a todos en la sala
     syncService.current.sendVideoAction('change_video', parsedId);

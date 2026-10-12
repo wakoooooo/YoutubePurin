@@ -33,14 +33,20 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
     ? BubbleThemesConfig[activeCustomization.themeId]
     : undefined;
 
-  const bubbleBg = isSelf
-    ? (themeConfig ? themeConfig.backgroundColor : PurinTheme.colors.bubbleSelf)
+  const bubbleBg = themeConfig
+    ? themeConfig.backgroundColor
+    : isSelf
+    ? PurinTheme.colors.bubbleSelf
     : PurinTheme.colors.bubbleOther;
 
-  const textColor = isSelf && themeConfig ? themeConfig.textColor : PurinTheme.colors.text;
-  const borderColor = isSelf && themeConfig ? themeConfig.borderColor : PurinTheme.colors.stroke;
+  const textColor = themeConfig ? themeConfig.textColor : PurinTheme.colors.text;
+  const borderColor = themeConfig
+    ? themeConfig.borderColor
+    : isSelf
+    ? PurinTheme.colors.stroke
+    : PurinTheme.colors.strokeLight;
   const customRadius = activeCustomization?.borderRadius || PurinTheme.borders.radiusBubble;
-  const decoration = activeCustomization?.decoration || 'purin_peek';
+  const decoration = activeCustomization?.decoration || 'none';
 
   return (
     <View

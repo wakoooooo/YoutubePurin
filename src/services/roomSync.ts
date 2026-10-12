@@ -23,6 +23,10 @@ export class RoomSyncService {
   private userName: string = '';
   private isHost: boolean = false;
 
+  private isSubscribed: boolean = false;
+  private pendingVideoActions: VideoSyncPayload[] = [];
+  private pendingChatMessages: ChatMessage[] = [];
+
   public connect(
     roomId: string,
     userId: string,
@@ -38,6 +42,7 @@ export class RoomSyncService {
     this.userId = userId;
     this.userName = userName;
     this.isHost = isHost;
+    this.isSubscribed = false;
 
     const channelName = `purin_room_${roomId.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
 
@@ -81,12 +86,36 @@ export class RoomSyncService {
     // Suscribirse y registrar presencia
     this.channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED' && this.channel) {
+        this.isSubscribed = true;
         await this.channel.track({
           userId: this.userId,
           userName: this.userName,
           isHost: this.isHost,
           joinedAt: Date.now(),
         });
+
+        // Vaciar acciones pendientes acumuladas antes del enlace
+        while (this.pendingVideoActions.length > 0) {
+          const act = this.pendingVideoActions.shift();
+          if (act) {
+            this.channel.send({
+              type: 'broadcast',
+              event: 'video_sync',
+              payload: act,
+            });
+          }
+        }
+
+        while (this.pendingChatMessages.length > 0) {
+          const msg = this.pendingChatMessages.shift();
+          if (msg) {
+            this.channel.send({
+              type: 'broadcast',
+              event: 'chat_message',
+              payload: msg,
+            });
+          }
+        }
       }
     });
   }
@@ -95,7 +124,7 @@ export class RoomSyncService {
     action: 'play' | 'pause' | 'change_video',
     videoId: string
   ): void {
-    if (!this.channel || !isSupabaseConfigured()) return;
+    if (!isSupabaseConfigured()) return;
 
     const payload: VideoSyncPayload = {
       action,
@@ -105,24 +134,35 @@ export class RoomSyncService {
       timestamp: Date.now(),
     };
 
-    this.channel.send({
-      type: 'broadcast',
-      event: 'video_sync',
-      payload,
-    });
+    if (this.channel && this.isSubscribed) {
+      this.channel.send({
+        type: 'broadcast',
+        event: 'video_sync',
+        payload,
+      });
+    } else {
+      this.pendingVideoActions.push(payload);
+    }
   }
 
   public sendChatMessage(message: ChatMessage): void {
-    if (!this.channel || !isSupabaseConfigured()) return;
+    if (!isSupabaseConfigured()) return;
 
-    this.channel.send({
-      type: 'broadcast',
-      event: 'chat_message',
-      payload: message,
-    });
+    if (this.channel && this.isSubscribed) {
+      this.channel.send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: message,
+      });
+    } else {
+      this.pendingChatMessages.push(message);
+    }
   }
 
   public disconnect(): void {
+    this.isSubscribed = false;
+    this.pendingVideoActions = [];
+    this.pendingChatMessages = [];
     if (this.channel) {
       supabase.removeChannel(this.channel);
       this.channel = null;
