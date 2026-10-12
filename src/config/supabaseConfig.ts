@@ -1,5 +1,5 @@
 // Configuracion de Supabase para comunicacion en tiempo real (Realtime Broadcast y Presence)
-// Obten tus credenciales gratuitas en https://supabase.com (Project Settings -> API)
 
-export const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
-export const SUPABASE_ANON_KEY = 'TU_ANON_KEY_PUBLICA';
+export const SUPABASE_URL = 'https://obfpmuajvbnjggkufunv.supabase.co';
+export const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9iZnBtdWFqdmJuamdna3VmdW52Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3NjY2NjgsImV4cCI6MjEwNzM0MjY2OH0.w6E3nvYfqjYDaEcpy6kj084WPy-c4fOWoLMzx13RUIc';
