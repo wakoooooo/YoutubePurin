@@ -22,6 +22,8 @@ import { BubbleCustomizerModal } from '../components/BubbleCustomizerModal';
 import { translations, Language } from '../i18n/translations';
 import { extractYoutubeId } from '../utils/youtube';
 import { ChatMessage, BubbleCustomization } from '../types';
+import { RoomSyncService } from '../services/roomSync';
+import { isSupabaseConfigured } from '../services/supabase';
 
 interface RoomScreenProps {
   roomId: string;
@@ -37,7 +39,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   roomId,
   userName,
   isHost,
-  initialVideoId = 'jfKfPfyJRdk',
+  initialVideoId = '5qap5aO4i9A',
   currentLanguage,
   onLanguageChange,
   onLeaveRoom,
@@ -49,6 +51,10 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [showVideoInput, setShowVideoInput] = useState(false);
   const [showCustomizer, setShowCustomizer] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(1);
+
+  // Identificador unico del usuario para esta sesion
+  const myUserId = useRef('user_' + Math.random().toString(36).substring(2, 9)).current;
 
   // Estado de personalizacion de burbuja del usuario
   const [bubbleCustomization, setBubbleCustomization] = useState<BubbleCustomization>({
@@ -57,7 +63,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     borderRadius: 20,
   });
 
-  // Chat inicial limpio: unicamente notificacion del sistema de bienvenida a la sala
+  // Chat inicial: notificacion de bienvenida a la sala
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'sys-join',
@@ -71,6 +77,74 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
 
   const flatListRef = useRef<FlatList>(null);
   const playerRef = useRef<YoutubeIframeRef>(null);
+  const syncService = useRef<RoomSyncService>(new RoomSyncService());
+
+  // Conexion al canal en tiempo real de Supabase
+  useEffect(() => {
+    syncService.current.connect(roomId, myUserId, userName, isHost, {
+      onPresenceUpdate: (count) => {
+        setOnlineCount(count);
+      },
+      onVideoSync: (payload) => {
+        if (payload.action === 'play') {
+          setIsPlaying(true);
+          playerRef.current?.playVideo?.();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: 'sys-' + Date.now(),
+              userId: 'system',
+              userName: 'Sistema',
+              text: t.resumedVideoSystem.replace('{name}', payload.senderName),
+              timestamp: Date.now(),
+              isSystem: true,
+            },
+          ]);
+        } else if (payload.action === 'pause') {
+          setIsPlaying(false);
+          playerRef.current?.pauseVideo?.();
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: 'sys-' + Date.now(),
+              userId: 'system',
+              userName: 'Sistema',
+              text: t.pausedVideoSystem.replace('{name}', payload.senderName),
+              timestamp: Date.now(),
+              isSystem: true,
+            },
+          ]);
+        } else if (payload.action === 'change_video') {
+          setVideoId(payload.videoId);
+          setIsPlaying(true);
+          setTimeout(() => {
+            playerRef.current?.playVideo?.();
+          }, 500);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: 'sys-' + Date.now(),
+              userId: 'system',
+              userName: 'Sistema',
+              text: t.changedVideoSystem.replace('{name}', payload.senderName),
+              timestamp: Date.now(),
+              isSystem: true,
+            },
+          ]);
+        }
+      },
+      onChatMessage: (incomingMsg) => {
+        setMessages((prev) => [...prev, incomingMsg]);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      },
+    });
+
+    return () => {
+      syncService.current.disconnect();
+    };
+  }, [roomId, myUserId, userName, isHost, t]);
 
   // Auto-scroll del chat cuando se abre o cierra el teclado virtual
   useEffect(() => {
@@ -92,8 +166,8 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     if (!inputText.trim()) return;
 
     const newMessage: ChatMessage = {
-      id: 'msg-' + Date.now(),
-      userId: 'self',
+      id: 'msg-' + Date.now() + Math.random().toString(36).substring(2, 5),
+      userId: myUserId,
       userName: userName,
       text: inputText.trim(),
       timestamp: Date.now(),
@@ -101,6 +175,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     };
 
     setMessages((prev) => [...prev, newMessage]);
+    syncService.current.sendChatMessage(newMessage);
     setInputText('');
 
     setTimeout(() => {
@@ -113,12 +188,14 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     const nextState = !isPlaying;
     setIsPlaying(nextState);
 
-    // Ejecucion imperativa directa en el reproductor de YouTube
     if (nextState) {
       playerRef.current?.playVideo?.();
     } else {
       playerRef.current?.pauseVideo?.();
     }
+
+    // Retransmitir accion al canal de la sala
+    syncService.current.sendVideoAction(nextState ? 'play' : 'pause', videoId);
 
     const actionText = nextState
       ? t.resumedVideoSystem.replace('{name}', userName)
@@ -163,6 +240,9 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
       playerRef.current?.playVideo?.();
     }, 500);
 
+    // Retransmitir nuevo video a todos en la sala
+    syncService.current.sendVideoAction('change_video', parsedId);
+
     setMessages((prev) => [
       ...prev,
       {
@@ -188,7 +268,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
                 {t.roomPrefix} {roomId}
               </Text>
               <Text style={styles.onlineCountText}>
-                {t.connectedCount.replace('{count}', '3')}
+                {t.connectedCount.replace('{count}', String(onlineCount))}
               </Text>
             </View>
           </View>
@@ -203,6 +283,17 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Banner informativo si falta configurar Supabase */}
+        {!isSupabaseConfigured() && (
+          <View style={styles.configBanner}>
+            <Text style={styles.configBannerText}>
+              {currentLanguage === 'es'
+                ? 'Conexion local: Configura tus credenciales de Supabase en supabaseConfig.ts para conectar con amigos.'
+                : 'Local mode: Add Supabase credentials in supabaseConfig.ts to connect with friends.'}
+            </Text>
+          </View>
+        )}
 
         {/* Seccion del Reproductor de Video */}
         <View style={styles.playerSection}>
@@ -274,7 +365,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
               renderItem={({ item }) => (
                 <ChatBubble
                   message={item}
-                  isSelf={item.userId === 'self'}
+                  isSelf={item.userId === myUserId}
                   selfCustomization={bubbleCustomization}
                 />
               )}
@@ -374,6 +465,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: PurinTheme.colors.text,
+  },
+  configBanner: {
+    backgroundColor: '#FFF3CD',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFEEBA',
+    marginBottom: 6,
+  },
+  configBannerText: {
+    fontSize: 10,
+    color: '#856404',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   playerSection: {
     marginBottom: 6,

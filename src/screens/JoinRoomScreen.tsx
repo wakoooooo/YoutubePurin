@@ -63,7 +63,7 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({
       return;
     }
 
-    let parsedVideoId = 'jfKfPfyJRdk'; // Lo-Fi hip hop radio por defecto
+    let parsedVideoId = '5qap5aO4i9A'; // Lofi Girl permanente y activo por defecto
     if (videoUrl.trim()) {
       const extracted = extractYoutubeId(videoUrl);
       if (!extracted) {

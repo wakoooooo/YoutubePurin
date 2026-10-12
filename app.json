@@ -15,10 +15,16 @@
         "backgroundColor": "#FFF8B8",
         "foregroundImage": "./assets/images/purin_logo.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.wakooo.youtubepurin"
     },
     "web": {
       "favicon": "./assets/images/purin_logo.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d75b34c0-c4cc-40ce-83d9-f11075a25191"
+      }
     }
   }
 }
