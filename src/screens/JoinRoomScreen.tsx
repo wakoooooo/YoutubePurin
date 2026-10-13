@@ -80,7 +80,7 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({
       return;
     }
 
-    let parsedVideoId = '5qap5aO4i9A'; // Lofi Girl permanente y activo por defecto
+    let parsedVideoId = 'gY5TgD-yRPI'; // Video oficial de Pompompurin permanente y activo
     if (videoUrl.trim()) {
       const extracted = extractYoutubeId(videoUrl);
       if (!extracted) {

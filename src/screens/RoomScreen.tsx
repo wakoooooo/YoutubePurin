@@ -41,7 +41,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   roomId,
   userName,
   isHost,
-  initialVideoId = '5qap5aO4i9A',
+  initialVideoId = 'gY5TgD-yRPI',
   currentLanguage,
   onLanguageChange,
   onLeaveRoom,
@@ -54,6 +54,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
   const [showVideoInput, setShowVideoInput] = useState(false);
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [onlineCount, setOnlineCount] = useState(1);
+  const [isChatFocused, setIsChatFocused] = useState(false);
 
   // Identificador unico del usuario para esta sesion
   const myUserId = useRef('user_' + Math.random().toString(36).substring(2, 9)).current;
@@ -170,6 +171,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
         setIsKeyboardOpen(false);
+        setIsChatFocused(false);
       }
     );
 
@@ -258,6 +260,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     setNewVideoUrl('');
     setShowVideoInput(false);
     setIsPlaying(true);
+    Keyboard.dismiss();
 
     playerRef.current?.loadVideo(parsedId);
     playerRef.current?.playVideo();
@@ -280,9 +283,9 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={[styles.container, isKeyboardOpen && styles.containerKeyboard]}>
-        {/* Barra Superior con Informacion de Sala (se oculta al escribir para dejar espacio al chat) */}
-        {!isKeyboardOpen && (
+      <View style={[styles.container, isChatFocused && styles.containerKeyboard]}>
+        {/* Barra Superior con Informacion de Sala (se oculta al escribir en el chat para dejar espacio de lectura) */}
+        {!isChatFocused && (
           <View style={styles.topBar}>
             <View style={styles.roomInfo}>
               <View style={styles.onlineDot} />
@@ -309,7 +312,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         )}
 
         {/* Banner informativo si falta configurar Supabase */}
-        {!isKeyboardOpen && !isSupabaseConfigured() && (
+        {!isChatFocused && !isSupabaseConfigured() && (
           <View style={styles.configBanner}>
             <Text style={styles.configBannerText}>
               {currentLanguage === 'es'
@@ -329,11 +332,11 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
             title="YouTube Player"
             isHost={isHost}
             statusBadgeText={isHost ? t.hostBadge : t.synchronizedBadge}
-            isCompact={isKeyboardOpen}
+            isCompact={isChatFocused}
           />
 
-          {/* Botones de Control de Sincronizacion (se ocultan mientras se escribe) */}
-          {!isKeyboardOpen && (
+          {/* Botones de Control de Sincronizacion */}
+          {!isChatFocused && (
             <View style={styles.controlsRow}>
               <TouchableOpacity onPress={handleTogglePlay} style={styles.syncBtn}>
                 <Text style={styles.syncBtnText}>
@@ -350,7 +353,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
             </View>
           )}
 
-          {showVideoInput && !isKeyboardOpen && (
+          {showVideoInput && (
             <View style={styles.changeVideoContainer}>
               <PurinInput
                 placeholder={t.newVideoPlaceholder}
@@ -410,6 +413,8 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
                   onChangeText={setInputText}
                   onSubmitEditing={handleSendMessage}
                   returnKeyType="send"
+                  onFocus={() => setIsChatFocused(true)}
+                  onBlur={() => setIsChatFocused(false)}
                 />
               </View>
               <PurinButton
