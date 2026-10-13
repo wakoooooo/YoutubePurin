@@ -1,17 +1,16 @@
 import React, {
   useState,
-  useEffect,
   useRef,
   forwardRef,
   useImperativeHandle,
   useCallback,
+  useEffect,
 } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   useWindowDimensions,
-  Platform,
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { PurinTheme } from '../theme/colors';
@@ -32,6 +31,9 @@ interface YoutubePlayerContainerProps {
   statusBadgeText?: string;
 }
 
+const DESKTOP_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.90 Safari/537.36';
+
 export const YoutubePlayerContainer = forwardRef<
   YoutubePlayerRef,
   YoutubePlayerContainerProps
@@ -49,67 +51,97 @@ export const YoutubePlayerContainer = forwardRef<
   ) => {
     const webViewRef = useRef<WebView>(null);
     const [isPlayerReady, setIsPlayerReady] = useState(false);
-    const currentVideoIdRef = useRef(videoId);
-    const isPlayingRef = useRef(playing);
-    isPlayingRef.current = playing;
+    const [currentVideoId, setCurrentVideoId] = useState(videoId);
 
     const { width: windowWidth } = useWindowDimensions();
     const playerWidth = Math.floor(windowWidth - 32);
     const playerHeight = Math.floor(playerWidth * (9 / 16));
 
-    // Exponer metodos imperativos directos
+    // Sincronizar videoId si cambia por props
+    useEffect(() => {
+      if (videoId && videoId !== currentVideoId) {
+        setCurrentVideoId(videoId);
+        setIsPlayerReady(false);
+      }
+    }, [videoId]);
+
+    const embedUrl = `https://www.youtube.com/embed/${currentVideoId}?playsinline=1&enablejsapi=1&autoplay=1&controls=1&rel=0&iv_load_policy=3&modestbranding=1`;
+
+    const injectedJavaScript = `
+      (function() {
+        function setupListeners() {
+          var v = document.querySelector('video');
+          if (v) {
+            v.addEventListener('play', function() {
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stateChange', data: 'playing' }));
+              }
+            });
+            v.addEventListener('pause', function() {
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stateChange', data: 'paused' }));
+              }
+            });
+            v.addEventListener('ended', function() {
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stateChange', data: 'ended' }));
+              }
+            });
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready', data: true }));
+            }
+          } else {
+            setTimeout(setupListeners, 250);
+          }
+        }
+        setupListeners();
+        true;
+      })();
+    `;
+
     useImperativeHandle(
       ref,
       () => ({
         playVideo: () => {
-          webViewRef.current?.injectJavaScript(
-            'try { if (window.player && window.player.playVideo) window.player.playVideo(); } catch(e){} true;'
-          );
+          const js = `
+            try {
+              var v = document.querySelector('video');
+              if (v) { v.play(); }
+              window.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+            } catch(e) {}
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
         },
         pauseVideo: () => {
-          webViewRef.current?.injectJavaScript(
-            'try { if (window.player && window.player.pauseVideo) window.player.pauseVideo(); } catch(e){} true;'
-          );
+          const js = `
+            try {
+              var v = document.querySelector('video');
+              if (v) { v.pause(); }
+              window.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+            } catch(e) {}
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
         },
         seekTo: (seconds: number) => {
-          webViewRef.current?.injectJavaScript(
-            `try { if (window.player && window.player.seekTo) window.player.seekTo(${seconds}, true); } catch(e){} true;`
-          );
+          const js = `
+            try {
+              var v = document.querySelector('video');
+              if (v) { v.currentTime = ${seconds}; }
+              window.postMessage('{"event":"command","func":"seekTo","args":[${seconds}, true]}', '*');
+            } catch(e) {}
+            true;
+          `;
+          webViewRef.current?.injectJavaScript(js);
         },
-        loadVideo: (newVideoId: string) => {
-          currentVideoIdRef.current = newVideoId;
-          webViewRef.current?.injectJavaScript(
-            `try { if (window.player && window.player.loadVideoById) window.player.loadVideoById("${newVideoId}"); } catch(e){} true;`
-          );
+        loadVideo: (newId: string) => {
+          setCurrentVideoId(newId);
+          setIsPlayerReady(false);
         },
       }),
       []
     );
-
-    // Reaccionar a cambios en la prop 'playing'
-    useEffect(() => {
-      if (!isPlayerReady) return;
-      if (playing) {
-        webViewRef.current?.injectJavaScript(
-          'try { if (window.player && window.player.playVideo) window.player.playVideo(); } catch(e){} true;'
-        );
-      } else {
-        webViewRef.current?.injectJavaScript(
-          'try { if (window.player && window.player.pauseVideo) window.player.pauseVideo(); } catch(e){} true;'
-        );
-      }
-    }, [playing, isPlayerReady]);
-
-    // Reaccionar a cambios en la prop 'videoId'
-    useEffect(() => {
-      if (!isPlayerReady) return;
-      if (currentVideoIdRef.current !== videoId) {
-        currentVideoIdRef.current = videoId;
-        webViewRef.current?.injectJavaScript(
-          `try { if (window.player && window.player.loadVideoById) window.player.loadVideoById("${videoId}"); } catch(e){} true;`
-        );
-      }
-    }, [videoId, isPlayerReady]);
 
     const handleMessage = useCallback(
       (event: WebViewMessageEvent) => {
@@ -117,11 +149,6 @@ export const YoutubePlayerContainer = forwardRef<
           const payload = JSON.parse(event.nativeEvent.data);
           if (payload.type === 'ready') {
             setIsPlayerReady(true);
-            if (isPlayingRef.current) {
-              webViewRef.current?.injectJavaScript(
-                'try { if (window.player && window.player.playVideo) window.player.playVideo(); } catch(e){} true;'
-              );
-            }
           } else if (payload.type === 'stateChange') {
             onStateChange(payload.data);
           }
@@ -131,74 +158,6 @@ export const YoutubePlayerContainer = forwardRef<
       },
       [onStateChange]
     );
-
-    // Plantilla HTML optimizada con YouTube IFrame API
-    const htmlSource = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background-color: #000; overflow: hidden; }
-    #player { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-  </style>
-</head>
-<body>
-  <div id="player"></div>
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <script>
-    var player;
-    function notifyRN(type, data) {
-      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, data: data }));
-      }
-    }
-
-    function onYouTubeIframeAPIReady() {
-      player = new YT.Player('player', {
-        width: '100%',
-        height: '100%',
-        videoId: '${videoId}',
-        playerVars: {
-          autoplay: ${playing ? 1 : 0},
-          playsinline: 1,
-          controls: 1,
-          rel: 0,
-          modestbranding: 1,
-          fs: 1,
-          enablejsapi: 1,
-          origin: 'https://www.youtube.com'
-        },
-        events: {
-          'onReady': onPlayerReady,
-          'onStateChange': onPlayerStateChange
-        }
-      });
-      window.player = player;
-    }
-
-    function onPlayerReady(event) {
-      window.player = player;
-      notifyRN('ready', true);
-    }
-
-    function onPlayerStateChange(event) {
-      var stateMap = {
-        '-1': 'unstarted',
-        '0': 'ended',
-        '1': 'playing',
-        '2': 'paused',
-        '3': 'buffering',
-        '5': 'cued'
-      };
-      var stateName = stateMap[event.data] || 'unknown';
-      notifyRN('stateChange', stateName);
-    }
-  </script>
-</body>
-</html>
-    `;
 
     return (
       <View style={styles.container}>
@@ -233,12 +192,14 @@ export const YoutubePlayerContainer = forwardRef<
         >
           <WebView
             ref={webViewRef}
-            source={{
-              html: htmlSource,
-              baseUrl: 'https://www.youtube.com',
-            }}
+            key={currentVideoId}
+            source={{ uri: embedUrl }}
             onMessage={handleMessage}
-            style={styles.webViewStyle}
+            injectedJavaScript={injectedJavaScript}
+            style={[
+              styles.webViewStyle,
+              { width: playerWidth, height: playerHeight },
+            ]}
             allowsFullscreenVideo={true}
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
@@ -246,12 +207,8 @@ export const YoutubePlayerContainer = forwardRef<
             renderToHardwareTextureAndroid={true}
             javaScriptEnabled={true}
             domStorageEnabled={true}
-            originWhitelist={['*']}
-            userAgent={
-              Platform.OS === 'android'
-                ? 'Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Mobile Safari/537.36'
-                : undefined
-            }
+            mixedContentMode="always"
+            userAgent={DESKTOP_USER_AGENT}
           />
         </View>
       </View>
@@ -312,12 +269,9 @@ const styles = StyleSheet.create({
   playerFrame: {
     backgroundColor: '#000000',
     overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   webViewStyle: {
     backgroundColor: '#000000',
-    width: '100%',
-    height: '100%',
+    opacity: 0.99,
   },
 });
