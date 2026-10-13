@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { SafeAreaView, StyleSheet, LogBox } from 'react-native';
+import { View, StyleSheet, Platform, StatusBar as RNStatusBar, LogBox } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { PurinTheme } from './src/theme/colors';
 import { JoinRoomScreen } from './src/screens/JoinRoomScreen';
 import { RoomScreen } from './src/screens/RoomScreen';
 import { Language } from './src/i18n/translations';
 
-// Ignorar advertencias internas de red y temporizadores del CLI de desarrollo
+// Ignorar advertencias internas de red y avisos de deprecacion
 LogBox.ignoreLogs([
   'Cannot connect to Expo CLI',
   'Setting a timer',
   'Animated: `useNativeDriver`',
+  'SafeAreaView has been deprecated',
 ]);
 
 interface ActiveRoomData {
@@ -25,7 +26,7 @@ export default function App() {
   const [language, setLanguage] = useState<Language>('es');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ExpoStatusBar style="dark" />
       {activeRoom ? (
         <RoomScreen
@@ -44,7 +45,7 @@ export default function App() {
           onEnterRoom={(data) => setActiveRoom(data)}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -52,5 +53,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: PurinTheme.colors.background,
+    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight || 0 : 0,
   },
 });

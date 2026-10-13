@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -39,6 +39,23 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({
   const [roomCode, setRoomCode] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleJoin = () => {
     if (!userName.trim()) {
@@ -87,38 +104,45 @@ export const JoinRoomScreen: React.FC<JoinRoomScreenProps> = ({
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 25}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
           style={styles.keyboardView}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              isKeyboardOpen && styles.scrollContentKeyboard,
+            ]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            {/* Selector de Idioma prominente y de mayor tamano */}
-            <View style={styles.topLanguageRow}>
+            {/* Selector de Idioma prominente */}
+            <View style={[styles.topLanguageRow, isKeyboardOpen && styles.topLanguageRowKeyboard]}>
               <LanguageToggle
-                size="large"
+                size={isKeyboardOpen ? 'normal' : 'large'}
                 currentLanguage={currentLanguage}
                 onLanguageChange={onLanguageChange}
               />
             </View>
 
-            {/* Encabezado con Logo Transparente del Personaje */}
-            <View style={styles.header}>
+            {/* Encabezado con Logo del Personaje */}
+            <View style={[styles.header, isKeyboardOpen && styles.headerKeyboard]}>
               <Image
                 source={require('../../assets/images/purin_logo.png')}
-                style={styles.logo}
+                style={[styles.logo, isKeyboardOpen && styles.logoKeyboard]}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>{t.appTitle}</Text>
-              <Text style={styles.subtitle}>{t.appSubtitle}</Text>
+              <Text style={[styles.title, isKeyboardOpen && styles.titleKeyboard]}>
+                {t.appTitle}
+              </Text>
+              {!isKeyboardOpen && (
+                <Text style={styles.subtitle}>{t.appSubtitle}</Text>
+              )}
             </View>
 
             {/* Tarjeta de Formulario */}
-            <View style={[styles.card, PurinTheme.shadows.cute]}>
+            <View style={[styles.card, PurinTheme.shadows.cute, isKeyboardOpen && styles.cardKeyboard]}>
               <PurinInput
                 label={t.nicknameLabel}
                 placeholder={t.nicknamePlaceholder}
@@ -199,27 +223,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingTop: Platform.OS === 'android' ? 36 : 24,
-    paddingBottom: 32,
+    paddingBottom: 28,
+  },
+  scrollContentKeyboard: {
+    justifyContent: 'flex-start',
+    paddingTop: Platform.OS === 'android' ? 12 : 16,
+    paddingBottom: 10,
   },
   topLanguageRow: {
     width: '100%',
     alignItems: 'flex-end',
     marginBottom: 12,
   },
+  topLanguageRowKeyboard: {
+    marginBottom: 4,
+  },
   header: {
     alignItems: 'center',
     marginBottom: 16,
+  },
+  headerKeyboard: {
+    marginBottom: 8,
   },
   logo: {
     width: 130,
     height: 130,
     marginBottom: 6,
   },
+  logoKeyboard: {
+    width: 72,
+    height: 72,
+    marginBottom: 2,
+  },
   title: {
     fontSize: 28,
     fontWeight: '800',
     color: PurinTheme.colors.text,
     letterSpacing: 0.5,
+  },
+  titleKeyboard: {
+    fontSize: 20,
   },
   subtitle: {
     fontSize: 13,
@@ -237,15 +280,19 @@ const styles = StyleSheet.create({
     borderColor: PurinTheme.colors.stroke,
     padding: 22,
   },
+  cardKeyboard: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
   actionBtn: {
-    marginTop: 14,
+    marginTop: 12,
   },
   secondaryBtn: {
     marginTop: 8,
   },
   divider: {
     alignItems: 'center',
-    marginTop: 14,
+    marginTop: 12,
   },
   dividerText: {
     fontSize: 11,

@@ -29,6 +29,7 @@ interface YoutubePlayerContainerProps {
   title?: string;
   isHost?: boolean;
   statusBadgeText?: string;
+  isCompact?: boolean;
 }
 
 const DESKTOP_USER_AGENT =
@@ -46,6 +47,7 @@ export const YoutubePlayerContainer = forwardRef<
       title = 'YouTube Video',
       isHost = false,
       statusBadgeText,
+      isCompact = false,
     },
     ref
   ) => {
@@ -55,7 +57,8 @@ export const YoutubePlayerContainer = forwardRef<
 
     const { width: windowWidth } = useWindowDimensions();
     const playerWidth = Math.floor(windowWidth - 32);
-    const playerHeight = Math.floor(playerWidth * (9 / 16));
+    const defaultHeight = Math.floor(playerWidth * (9 / 16));
+    const activeHeight = isCompact ? 108 : defaultHeight;
 
     // Sincronizar videoId si cambia por props
     useEffect(() => {
@@ -65,75 +68,83 @@ export const YoutubePlayerContainer = forwardRef<
       }
     }, [videoId]);
 
-    const embedUrl = `https://www.youtube.com/embed/${currentVideoId}?playsinline=1&enablejsapi=1&autoplay=1&controls=1&rel=0&iv_load_policy=3&modestbranding=1`;
+    // HTML Wrapper con encabezados de Referer validos y dominio youtube-nocookie para prevenir Error 153
+    const htmlWrapper = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background-color: #000; overflow: hidden; }
+    #yt-iframe { width: 100%; height: 100%; border: 0; display: block; }
+  </style>
+</head>
+<body>
+  <iframe
+    id="yt-iframe"
+    src="https://www.youtube-nocookie.com/embed/${currentVideoId}?enablejsapi=1&autoplay=1&playsinline=1&controls=1&rel=0&iv_load_policy=3&modestbranding=1"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen
+  ></iframe>
 
-    const injectedJavaScript = `
-      (function() {
-        function setupListeners() {
-          var v = document.querySelector('video');
-          if (v) {
-            v.addEventListener('play', function() {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stateChange', data: 'playing' }));
-              }
-            });
-            v.addEventListener('pause', function() {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stateChange', data: 'paused' }));
-              }
-            });
-            v.addEventListener('ended', function() {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stateChange', data: 'ended' }));
-              }
-            });
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready', data: true }));
-            }
-          } else {
-            setTimeout(setupListeners, 250);
+  <script>
+    var iframe = document.getElementById('yt-iframe');
+
+    function postCmd(func, args) {
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(JSON.stringify({
+          event: 'command',
+          func: func,
+          args: args || ''
+        }), '*');
+      }
+    }
+
+    window.addEventListener('message', function(event) {
+      try {
+        var data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (!data) return;
+
+        if (data.event === 'onStateChange') {
+          var stateMap = {
+            '-1': 'unstarted',
+            '0': 'ended',
+            '1': 'playing',
+            '2': 'paused',
+            '3': 'buffering',
+            '5': 'cued'
+          };
+          var stateName = stateMap[data.info] || 'unknown';
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'stateChange', data: stateName }));
+          }
+        } else if (data.event === 'initialDelivery') {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready', data: true }));
           }
         }
-        setupListeners();
-        true;
-      })();
+      } catch (e) {}
+    });
+  </script>
+</body>
+</html>
     `;
 
     useImperativeHandle(
       ref,
       () => ({
         playVideo: () => {
-          const js = `
-            try {
-              var v = document.querySelector('video');
-              if (v) { v.play(); }
-              window.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-            } catch(e) {}
-            true;
-          `;
-          webViewRef.current?.injectJavaScript(js);
+          webViewRef.current?.injectJavaScript("postCmd('playVideo'); true;");
         },
         pauseVideo: () => {
-          const js = `
-            try {
-              var v = document.querySelector('video');
-              if (v) { v.pause(); }
-              window.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-            } catch(e) {}
-            true;
-          `;
-          webViewRef.current?.injectJavaScript(js);
+          webViewRef.current?.injectJavaScript("postCmd('pauseVideo'); true;");
         },
         seekTo: (seconds: number) => {
-          const js = `
-            try {
-              var v = document.querySelector('video');
-              if (v) { v.currentTime = ${seconds}; }
-              window.postMessage('{"event":"command","func":"seekTo","args":[${seconds}, true]}', '*');
-            } catch(e) {}
-            true;
-          `;
-          webViewRef.current?.injectJavaScript(js);
+          webViewRef.current?.injectJavaScript(
+            `postCmd('seekTo', [${seconds}, true]); true;`
+          );
         },
         loadVideo: (newId: string) => {
           setCurrentVideoId(newId);
@@ -161,44 +172,48 @@ export const YoutubePlayerContainer = forwardRef<
 
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.indicatorRow}>
-            <View
-              style={[
-                styles.liveDot,
-                {
-                  backgroundColor: isPlayerReady
-                    ? PurinTheme.colors.statusOnline
-                    : '#FFA000',
-                },
-              ]}
-            />
-            <Text numberOfLines={1} style={styles.titleText}>
-              {title}
-            </Text>
+        {!isCompact && (
+          <View style={styles.header}>
+            <View style={styles.indicatorRow}>
+              <View
+                style={[
+                  styles.liveDot,
+                  {
+                    backgroundColor: isPlayerReady
+                      ? PurinTheme.colors.statusOnline
+                      : '#FFA000',
+                  },
+                ]}
+              />
+              <Text numberOfLines={1} style={styles.titleText}>
+                {title}
+              </Text>
+            </View>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {statusBadgeText || (isHost ? 'Anfitrion' : 'Sincronizado')}
+              </Text>
+            </View>
           </View>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              {statusBadgeText || (isHost ? 'Anfitrion' : 'Sincronizado')}
-            </Text>
-          </View>
-        </View>
+        )}
 
         <View
           style={[
             styles.playerFrame,
-            { height: playerHeight, width: playerWidth },
+            { height: activeHeight, width: playerWidth },
           ]}
         >
           <WebView
             ref={webViewRef}
             key={currentVideoId}
-            source={{ uri: embedUrl }}
+            source={{
+              html: htmlWrapper,
+              baseUrl: 'https://www.youtube-nocookie.com',
+            }}
             onMessage={handleMessage}
-            injectedJavaScript={injectedJavaScript}
             style={[
               styles.webViewStyle,
-              { width: playerWidth, height: playerHeight },
+              { width: playerWidth, height: activeHeight },
             ]}
             allowsFullscreenVideo={true}
             allowsInlineMediaPlayback={true}
@@ -207,6 +222,7 @@ export const YoutubePlayerContainer = forwardRef<
             renderToHardwareTextureAndroid={true}
             javaScriptEnabled={true}
             domStorageEnabled={true}
+            originWhitelist={['*']}
             mixedContentMode="always"
             userAgent={DESKTOP_USER_AGENT}
           />
@@ -223,7 +239,7 @@ const styles = StyleSheet.create({
     borderWidth: PurinTheme.borders.thick,
     borderColor: PurinTheme.colors.stroke,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 6,
     alignItems: 'center',
   },
   header: {
@@ -232,7 +248,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     backgroundColor: '#4E342E',
   },
   indicatorRow: {

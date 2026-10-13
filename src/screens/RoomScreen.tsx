@@ -152,19 +152,30 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
     };
   }, [roomId, myUserId, userName, isHost, t]);
 
-  // Auto-scroll del chat cuando se abre o cierra el teclado virtual
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  // Auto-scroll del chat y deteccion de apertura/cierre del teclado
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       () => {
+        setIsKeyboardOpen(true);
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 150);
       }
     );
 
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setIsKeyboardOpen(false);
+      }
+    );
+
     return () => {
       showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
@@ -269,34 +280,36 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.container}>
-        {/* Barra Superior con Informacion de Sala y Selector de Idioma */}
-        <View style={styles.topBar}>
-          <View style={styles.roomInfo}>
-            <View style={styles.onlineDot} />
-            <View>
-              <Text style={styles.roomCodeText}>
-                {t.roomPrefix} {roomId}
-              </Text>
-              <Text style={styles.onlineCountText}>
-                {t.connectedCount.replace('{count}', String(onlineCount))}
-              </Text>
+      <View style={[styles.container, isKeyboardOpen && styles.containerKeyboard]}>
+        {/* Barra Superior con Informacion de Sala (se oculta al escribir para dejar espacio al chat) */}
+        {!isKeyboardOpen && (
+          <View style={styles.topBar}>
+            <View style={styles.roomInfo}>
+              <View style={styles.onlineDot} />
+              <View>
+                <Text style={styles.roomCodeText}>
+                  {t.roomPrefix} {roomId}
+                </Text>
+                <Text style={styles.onlineCountText}>
+                  {t.connectedCount.replace('{count}', String(onlineCount))}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.topActions}>
+              <LanguageToggle
+                currentLanguage={currentLanguage}
+                onLanguageChange={onLanguageChange}
+              />
+              <TouchableOpacity onPress={onLeaveRoom} style={styles.leaveButton}>
+                <Text style={styles.leaveButtonText}>{t.leaveButton}</Text>
+              </TouchableOpacity>
             </View>
           </View>
-
-          <View style={styles.topActions}>
-            <LanguageToggle
-              currentLanguage={currentLanguage}
-              onLanguageChange={onLanguageChange}
-            />
-            <TouchableOpacity onPress={onLeaveRoom} style={styles.leaveButton}>
-              <Text style={styles.leaveButtonText}>{t.leaveButton}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        )}
 
         {/* Banner informativo si falta configurar Supabase */}
-        {!isSupabaseConfigured() && (
+        {!isKeyboardOpen && !isSupabaseConfigured() && (
           <View style={styles.configBanner}>
             <Text style={styles.configBannerText}>
               {currentLanguage === 'es'
@@ -316,25 +329,28 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
             title="YouTube Player"
             isHost={isHost}
             statusBadgeText={isHost ? t.hostBadge : t.synchronizedBadge}
+            isCompact={isKeyboardOpen}
           />
 
-          {/* Botones de Control de Sincronizacion */}
-          <View style={styles.controlsRow}>
-            <TouchableOpacity onPress={handleTogglePlay} style={styles.syncBtn}>
-              <Text style={styles.syncBtnText}>
-                {isPlaying ? t.pauseForAll : t.playForAll}
-              </Text>
-            </TouchableOpacity>
+          {/* Botones de Control de Sincronizacion (se ocultan mientras se escribe) */}
+          {!isKeyboardOpen && (
+            <View style={styles.controlsRow}>
+              <TouchableOpacity onPress={handleTogglePlay} style={styles.syncBtn}>
+                <Text style={styles.syncBtnText}>
+                  {isPlaying ? t.pauseForAll : t.playForAll}
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => setShowVideoInput(!showVideoInput)}
-              style={styles.changeVideoBtn}
-            >
-              <Text style={styles.changeVideoBtnText}>{t.changeVideo}</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                onPress={() => setShowVideoInput(!showVideoInput)}
+                style={styles.changeVideoBtn}
+              >
+                <Text style={styles.changeVideoBtnText}>{t.changeVideo}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-          {showVideoInput && (
+          {showVideoInput && !isKeyboardOpen && (
             <View style={styles.changeVideoContainer}>
               <PurinInput
                 placeholder={t.newVideoPlaceholder}
@@ -349,8 +365,8 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
 
         {/* Seccion de Chat Desplazable con Teclado */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 70 : 20}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 70 : 0}
           style={styles.chatAvoidingContainer}
         >
           <View style={[styles.chatSection, PurinTheme.shadows.cuteSm]}>
@@ -425,6 +441,10 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? 36 : 48,
     paddingHorizontal: 16,
     paddingBottom: 12,
+  },
+  containerKeyboard: {
+    paddingTop: Platform.OS === 'android' ? 10 : 20,
+    paddingBottom: 6,
   },
   topBar: {
     flexDirection: 'row',
